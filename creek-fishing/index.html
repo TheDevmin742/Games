@@ -575,9 +575,8 @@ function drawBobber(x,y){
   rect(x-1,y,3,2,'#f2efe2');
   rect(x,y-3,1,1,'#8a3a30');
   if(phase==='bite'){                                     // now!
-    ctx.fillStyle=Math.sin(tGlobal*22)>0?'#f2d98a':'#f2efe2';
-    ctx.font='bold 8px "Courier New",monospace'; ctx.textBaseline='top';
-    ctx.fillText('!', x+3, y-13);
+    const c=Math.sin(tGlobal*22)>0?'#f2d98a':'#f2efe2';
+    rect(x-1,y-14,4,8,'#141d16'); rect(x,y-13,2,4,c); rect(x,y-8,2,1,c);
   }
 }
 
@@ -787,10 +786,10 @@ function drawTitle(){
   ctx.fillStyle='rgba(10,18,13,0.58)'; ctx.fillRect(0,0,VW,VH);
   ctx.textAlign='center'; ctx.textBaseline='top';
   ctx.fillStyle='#0a120d';
-  ctx.font='bold 19px "Courier New",monospace';
-  ctx.fillText('C R E E K  F I S H I N G', VW/2+1, 47);
+  ctx.font='bold 17px "Courier New",monospace';
+  ctx.fillText('C R E E K  F I S H I N G', VW/2+1, 48);
   ctx.fillStyle='#f0e6cc';
-  ctx.fillText('C R E E K  F I S H I N G', VW/2, 46);
+  ctx.fillText('C R E E K  F I S H I N G', VW/2, 47);
   ctx.font='8px "Courier New",monospace';
   ctx.fillStyle='#b9c9a8';
   ctx.fillText('the small black cat tries a quiet afternoon', VW/2, 74);

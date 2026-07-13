@@ -810,6 +810,7 @@ window.__fc = {
   get flies(){return fireflies},
   start(){ if(state==='title') startPlay(); },
   catAt(x,y){ cat.x=x; cat.y=y; },
+  walkable(x,y){ return canStand(x,y); },
   setMoon(t){ moonT=t; },
   pounce(){ doPounce(); },
 };

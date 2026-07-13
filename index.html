@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Cozy Arcade — tiny tales of a small black cat</title>
+<style>
+  :root{
+    --bg:#101613; --card:#18211b; --edge:#2a3a2e; --ink:#efe6cf;
+    --sub:#9db38f; --glow:#f2d98a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;min-height:100%;background:var(--bg);
+    font-family:"Courier New",monospace;color:var(--ink)}
+  #sky{position:fixed;inset:0;z-index:0;pointer-events:none}
+  main{position:relative;z-index:1;max-width:880px;margin:0 auto;
+    padding:48px 20px 80px}
+  header{text-align:center;margin-bottom:44px}
+  h1{font-size:clamp(22px,5vw,34px);letter-spacing:.35em;margin:0 0 14px;
+    text-shadow:0 2px 0 #060b08}
+  .paw{font-size:26px;display:block;margin-bottom:10px}
+  .tag{color:var(--sub);font-size:14px;margin:0;letter-spacing:.06em}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:22px}
+  a.card{display:flex;flex-direction:column;background:var(--card);
+    border:1px solid var(--edge);border-radius:10px;overflow:hidden;
+    text-decoration:none;color:var(--ink);
+    transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease}
+  a.card:hover,a.card:focus-visible{transform:translateY(-3px);
+    border-color:#4a6a50;box-shadow:0 10px 28px rgba(0,0,0,.45),0 0 0 1px #4a6a50;
+    outline:none}
+  .thumb{aspect-ratio:16/9;background:#0c110e;overflow:hidden;position:relative}
+  .thumb img{width:100%;height:100%;object-fit:cover;display:block;
+    image-rendering:pixelated}
+  .thumb .ph{position:absolute;inset:0;display:flex;align-items:center;
+    justify-content:center;font-size:42px}
+  .body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:8px;flex:1}
+  h2{font-size:15px;margin:0;letter-spacing:.14em}
+  .blurb{color:var(--sub);font-size:12.5px;line-height:1.5;margin:0;flex:1}
+  .go{font-size:11px;letter-spacing:.2em;color:var(--glow);opacity:.85}
+  .new{position:absolute;top:8px;left:8px;background:rgba(16,22,19,.8);
+    border:1px solid rgba(242,217,138,.5);color:var(--glow);font-size:10px;
+    letter-spacing:.15em;padding:3px 7px;border-radius:6px}
+  footer{text-align:center;margin-top:56px;color:#5c705a;font-size:12px;line-height:1.8}
+  @media (prefers-reduced-motion: reduce){
+    a.card{transition:none}
+  }
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+<main>
+  <header>
+    <span class="paw">🐾</span>
+    <h1>THE COZY ARCADE</h1>
+    <p class="tag">tiny tales of a small black cat — no installs, no accounts, just open and play</p>
+  </header>
+
+  <div class="grid">
+    <a class="card" href="a-way-home/index.html">
+      <div class="thumb"><img src="a-way-home/screenshots/bridge.png" alt="A pixel cat crossing a wooden bridge over a creek" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.hidden=false"><span class="ph" hidden>🏡</span></div>
+      <div class="body">
+        <h2>A WAY HOME</h2>
+        <p class="blurb">The rain has stopped. Cross the creek, follow the lanterns, and find the warm window waiting far to the east. Where it all began.</p>
+        <span class="go">▶ WANDER</span>
+      </div>
+    </a>
+
+    <a class="card" href="lighthouse-island/index.html">
+      <div class="thumb"><span class="new">NEW</span><img src="lighthouse-island/screenshots/night.png" alt="A lighthouse beam sweeping over an island at night" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.hidden=false"><span class="ph" hidden>🗼</span></div>
+      <div class="body">
+        <h2>THE LIGHTHOUSE</h2>
+        <p class="blurb">An island, a keeper named Maren, and a lamp that turns all night. Swim, snack on beach berries, find her lost shells — and mind the urchins.</p>
+        <span class="go">▶ SET SAIL</span>
+      </div>
+    </a>
+
+    <a class="card" href="firefly-catcher/index.html">
+      <div class="thumb"><span class="new">NEW</span><img src="firefly-catcher/screenshots/play.png" alt="A cat catching fireflies in a night meadow" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.hidden=false"><span class="ph" hidden>✨</span></div>
+      <div class="body">
+        <h2>FIREFLY CATCHER</h2>
+        <p class="blurb">One jar, one meadow, one setting moon. Pounce on drifting lights before the night ends — then let every one of them go.</p>
+        <span class="go">▶ POUNCE</span>
+      </div>
+    </a>
+
+    <a class="card" href="creek-fishing/index.html">
+      <div class="thumb"><span class="new">NEW</span><img src="creek-fishing/screenshots/play.png" alt="A cat fishing at the creek by the old bridge" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.hidden=false"><span class="ph" hidden>🎣</span></div>
+      <div class="body">
+        <h2>CREEK FISHING</h2>
+        <p class="blurb">A bamboo rod, a patient frog, and eight things that might tug the line. Fill the journal one gentle catch at a time.</p>
+        <span class="go">▶ CAST OFF</span>
+      </div>
+    </a>
+
+    <a class="card" href="little-garden/index.html">
+      <div class="thumb"><span class="new">NEW</span><img src="little-garden/screenshots/play.png" alt="A garden plot behind the cottage" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.hidden=false"><span class="ph" hidden>🌻</span></div>
+      <div class="body">
+        <h2>LITTLE GARDEN</h2>
+        <p class="blurb">Till, plant, water, wait. Sunflowers, pumpkins, and catnip that grow in real time — even while you're away. Shoo the crows.</p>
+        <span class="go">▶ PUTTER</span>
+      </div>
+    </a>
+
+    <a class="card" href="star-paths/index.html">
+      <div class="thumb"><span class="new">NEW</span><img src="star-paths/screenshots/play.png" alt="Constellations above a cottage rooftop" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.hidden=false"><span class="ph" hidden>🌠</span></div>
+      <div class="body">
+        <h2>STAR PATHS</h2>
+        <p class="blurb">From the cottage roof, connect the stars — five constellations, five chapters of how one small black cat found her way home.</p>
+        <span class="go">▶ LOOK UP</span>
+      </div>
+    </a>
+  </div>
+
+  <footer>
+    every game is a single file — vanilla js, a canvas, and a cat<br>
+    made with 🖤 by a human and a robot, vibing
+  </footer>
+</main>
+<script>
+// drifting fireflies behind everything
+const cvs=document.getElementById('sky'),ctx=cvs.getContext('2d');
+let W,H;
+function fit(){W=cvs.width=innerWidth;H=cvs.height=innerHeight;}
+addEventListener('resize',fit);fit();
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const flies=Array.from({length:26},()=>({
+  x:Math.random()*W,y:Math.random()*H,a:Math.random()*7,ph:Math.random()*7,
+  sp:.2+Math.random()*.4}));
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(.05,(now-last)/1000);last=now;
+  ctx.clearRect(0,0,W,H);
+  for(const f of flies){
+    f.ph+=dt;f.a+=dt*f.sp*(Math.sin(f.ph*.7)>0?1:-1);
+    f.x+=Math.cos(f.a)*12*dt;f.y+=Math.sin(f.a*1.3)*9*dt;
+    if(f.x<-10)f.x=W+10;if(f.x>W+10)f.x=-10;
+    if(f.y<-10)f.y=H+10;if(f.y>H+10)f.y=-10;
+    const tw=(Math.sin(f.ph*2.2)+1)/2;
+    if(tw<.2)continue;
+    const g=ctx.createRadialGradient(f.x,f.y,0,f.x,f.y,7);
+    g.addColorStop(0,'rgba(242,217,138,'+(tw*.5)+')');
+    g.addColorStop(1,'rgba(242,217,138,0)');
+    ctx.fillStyle=g;ctx.fillRect(f.x-7,f.y-7,14,14);
+    ctx.fillStyle='rgba(255,240,190,'+tw+')';
+    ctx.fillRect(f.x,f.y,1.5,1.5);
+  }
+  if(!reduced)requestAnimationFrame(frame);
+}
+if(!reduced)requestAnimationFrame(frame);
+</script>
+</body>
+</html>

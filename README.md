@@ -1,41 +1,35 @@
-# 🐾 A Way Home
+# 🐾 The Cozy Arcade
 
-*A tiny cozy tale of a small black cat.*
+*Tiny tales of a small black cat.*
 
-The rain has finally stopped. Somewhere far to the east — past the creek,
-past the pines — a warm window is waiting.
+A collection of cozy pixel games. Every game is a **single self-contained
+HTML file** — vanilla JavaScript and a `<canvas>`, no builds, no
+dependencies, no accounts. Open `index.html` for the arcade shelf, or dive
+straight into any game's folder.
 
-![title](screenshots/title.png)
+| Game | Folder | What it is |
+|---|---|---|
+| **A Way Home** | [`a-way-home/`](a-way-home/) | The original. Cross the creek, follow the lanterns, find the warm window far to the east. |
+| **The Lighthouse** | [`lighthouse-island/`](lighthouse-island/) | Explore an island with Maren the keeper. Swim (energy bar), dodge urchins (5 hearts), find her lost shells, earn a red scarf. Big cat portrait status panel. |
+| **Firefly Catcher** | [`firefly-catcher/`](firefly-catcher/) | One jar, one meadow, one setting moon. Pounce on drifting lights — then let them all go. |
+| **Creek Fishing** | [`creek-fishing/`](creek-fishing/) | A bamboo rod and eight things that might tug the line. Fill the journal, one gentle catch at a time. |
+| **Little Garden** | [`little-garden/`](little-garden/) | Till, plant, water, wait. Crops grow in real time — even while you're away (localStorage). Shoo the crows. |
+| **Star Paths** | [`star-paths/`](star-paths/) | Connect five constellations from the cottage roof — five chapters of how she found her way home. |
 
-## Play
+## Playing
 
-Just open **`index.html`** in any browser. No build, no dependencies —
-one self-contained file.
+- **Desktop:** arrow keys / WASD (plus per-game keys shown on each title screen)
+- **Phone / tablet:** drag anywhere to walk, tap to act
+- **Sound:** every game starts muted — tap the 🔇 button for generative
+  Web Audio ambience (music box, creek, crickets, waves…)
 
-- **Move** — arrow keys / WASD, or drag anywhere on touch
-- **Sound** — tap the 🔇 button for a gentle generative music box and the
-  murmur of the creek (off by default)
-- Head **east**. She knows the way.
-
-## The journey
-
-Cross the old wooden bridge, wander the clover meadow as the first
-fireflies wake, pick your way over the stepping stones, and follow the
-lanterns home as dusk settles over the world.
-
-![the old bridge](screenshots/bridge.png)
-![lanterns at dusk](screenshots/dusk.png)
+![the old bridge](a-way-home/screenshots/bridge.png)
+![the lighthouse at night](lighthouse-island/screenshots/night.png)
 
 ## How it's made
 
-- Single HTML file, vanilla JavaScript, `<canvas>` at 320×180 scaled up
-  for that chunky pixel look
-- The whole world (creeks, path, forest, flowers) is procedurally
-  generated from a fixed seed — same cozy world every time
-- Day fades to dusk as you travel east; lanterns and windows begin to glow
-- Ambient touches: drifting leaves, butterflies, chimney smoke, a frog
-  that ribbits when you get close, and a cat that sits down and blinks
-  if you let her rest
-- Audio is generated with the Web Audio API — a pentatonic music box with
-  a soft delay, and filtered noise for the creek that swells as you near
-  the water
+- 320×180 pixel canvas scaled up for the chunky look, worlds procedurally
+  generated from fixed seeds
+- All art is drawn in code — no image assets anywhere
+- All audio is generated with the Web Audio API — no sound files either
+- Vibe-coded by a human and a robot, one cozy idea at a time 🖤

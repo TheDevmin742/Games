@@ -84,9 +84,9 @@ const CONS=[
    edges:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,0]],
    story:"She was born in a barn at the edge of a field — one small shadow in the hay, quick and warm and nameless.",
    ghost(a){
-     path(this.pts,true); ctx.fillStyle='rgba(255,196,130,'+0.10*a+')'; ctx.fill();
-     ctx.fillStyle='rgba(255,214,150,'+0.10*a+')'; ctx.fillRect(-7,4,14,20);
-     ctx.fillStyle='rgba(255,230,170,'+0.16*a+')'; ctx.fillRect(-3,-14,6,6);
+     path(this.pts,true); ctx.fillStyle='rgba(255,178,105,'+0.12*a+')'; ctx.fill();
+     ctx.fillStyle='rgba(255,205,130,'+0.13*a+')'; ctx.fillRect(-7,4,14,20);
+     ctx.fillStyle='rgba(255,224,150,'+0.20*a+')'; ctx.fillRect(-3,-14,6,6);
    }},
  { name:'II · the city lights', pos:[202,58], slot:[284,24],
    pts:[[-42,20],[-32,-8],[-20,4],[-10,-22],[2,-4],[12,-14],[20,8],[30,-18],[42,14]],
@@ -158,13 +158,13 @@ const sky=document.createElement('canvas'); sky.width=VW; sky.height=VH;
   for(let k=0;k<7;k++){
     const px=k*50-10, py2=98-px*0.21;
     const rg=g.createRadialGradient(px,py2,0,px,py2,36);
-    rg.addColorStop(0,'rgba(165,185,215,0.05)'); rg.addColorStop(1,'rgba(165,185,215,0)');
+    rg.addColorStop(0,'rgba(165,185,215,0.07)'); rg.addColorStop(1,'rgba(165,185,215,0)');
     g.fillStyle=rg; g.fillRect(px-36,py2-36,72,72);
   }
-  for(let i=0;i<620;i++){
+  for(let i=0;i<760;i++){
     const t=rnd(), cx=t*360-20, cy=98-cx*0.21+(rnd()+rnd()+rnd()-1.5)*26;
-    g.fillStyle=rnd()<0.72?'rgba(205,216,234,'+(0.03+rnd()*0.06)+')'
-                          :'rgba(232,220,200,'+(0.03+rnd()*0.05)+')';
+    g.fillStyle=rnd()<0.72?'rgba(205,216,234,'+(0.04+rnd()*0.08)+')'
+                          :'rgba(232,220,200,'+(0.04+rnd()*0.07)+')';
     g.fillRect(Math.round(cx),Math.round(cy),1,1);
   }
 }
@@ -225,7 +225,7 @@ function drawRoofCat(){
   rect(cx-7,RIDGE-4,13,4,K);
   rect(cx-6,RIDGE-5-br,11,1+br,K);
   disc(cx+7,RIDGE-6,3,K);                                   // head, tilted up
-  rect(cx+5,RIDGE-10,1,2,K); rect(cx+8,RIDGE-10,1,2,K);     // ears
+  rect(cx+4,RIDGE-11,2,3,K); rect(cx+8,RIDGE-11,2,3,K);     // ears
   rect(cx-6,RIDGE-5-br,11,1,'#242838');                     // moonlit rim
   // tail, swishing now and then
   const wag = cat.swish>0 ? Math.round(Math.sin(tGlobal*8)*1.5) : 0;
@@ -389,9 +389,11 @@ function update(dt){
 }
 
 /* ---------------- constellation drawing ---------------- */
-function glowLine(x1,y1,x2,y2,a){
-  ctx.strokeStyle='rgba(255,231,176,'+(a*0.13)+')'; ctx.lineWidth=3;
-  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+function glowLine(x1,y1,x2,y2,a,thin){
+  if(!thin){
+    ctx.strokeStyle='rgba(255,231,176,'+(a*0.13)+')'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  }
   ctx.strokeStyle='rgba(255,238,196,'+(a*0.55)+')'; ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
 }
@@ -448,7 +450,7 @@ function drawMini(idx,alpha,glowA){
   const shim=0.85+0.15*Math.sin(tGlobal*0.9+idx*2.2);
   for(const [a,b] of c.edges)
     glowLine(px+c.pts[a][0]*sc,py+c.pts[a][1]*sc,
-             px+c.pts[b][0]*sc,py+c.pts[b][1]*sc, alpha*shim*0.55);
+             px+c.pts[b][0]*sc,py+c.pts[b][1]*sc, alpha*shim*0.8, true);
   ctx.fillStyle='rgba(255,240,200,'+alpha*shim+')';
   for(const pt of c.pts) ctx.fillRect(Math.round(px+pt[0]*sc),Math.round(py+pt[1]*sc),1,1);
   ctx.globalCompositeOperation='source-over';

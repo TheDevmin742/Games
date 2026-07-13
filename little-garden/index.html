@@ -460,7 +460,7 @@ function updateParticles(dt){
     if(d.a<=0) drops.splice(i,1);
   }
   for(let i=hearts.length-1;i>=0;i--){
-    const h=hearts[i]; h.y+=h.vy*dt; h.x+=Math.sin(tGlobal*4+h.y)*6*dt; h.a-=0.55*dt;
+    const h=hearts[i]; h.y+=h.vy*dt; h.x+=Math.sin(tGlobal*4+h.y)*6*dt; h.a-=0.42*dt;
     if(h.a<=0) hearts.splice(i,1);
   }
   for(let i=puffs.length-1;i>=0;i--){
@@ -508,6 +508,13 @@ function drawTile(tx,ty){
     if(tx===20) rect(sx+T-1,sy,1,T,'#a9a06e');
     return;
   }
+  // the ground inside the fence is a little worn and warm — a worked plot
+  const F=FENCE;
+  if(sx+4>F.x0&&sx+4<F.x1&&sy+4>F.y0&&sy+4<F.y1){
+    rect(sx,sy,T,T, h<0.5?'#7ca263':'#779d5e');
+    if(h<0.18) rect(sx+(h*23|0)%6+1, sy+(h*13|0)%6+1,1,1,'#8f9d63');
+    return;
+  }
   if(h<0.10){
     rect(sx,sy,T,T,'#6d9c5b');
     rect(sx+2,sy+3,1,2,'#5f8f50'); rect(sx+5,sy+1,1,2,'#5f8f50');
@@ -544,12 +551,17 @@ function drawCottage(){
     rect(wx-1,28,15,3,'#8a5f38');
     for(let i=0;i<4;i++) rect(wx+1+i*4,27,2,1,i%2?'#efc9d3':'#f2d98a');
   }
+  // a third little window on the long east wall
+  rect(240,15,10,10,'#4a3a28');
+  rect(241,16,8,8,'#ffd98a');
+  rect(244,16,1,8,'#4a3a28'); rect(241,19,8,1,'#4a3a28');
+  rect(239,25,12,2,'#c9b78f');
   // back door with a little step, path runs down to the garden gate
-  rect(146,13,17,WALL_Y-13,'#6b4a30');
-  rect(147,14,15,WALL_Y-14,'#7d5839');
-  rect(149,17,4,5,'#ffd98a'); rect(151,17,1,5,'#4a3a28'); rect(149,19,4,1,'#4a3a28');
-  rect(158,22,1,2,'#3a2c1c');
-  rect(144,WALL_Y,21,2,'#b9baa8'); // stone step
+  rect(151,13,17,WALL_Y-13,'#6b4a30');
+  rect(152,14,15,WALL_Y-14,'#7d5839');
+  rect(154,17,4,5,'#ffd98a'); rect(156,17,1,5,'#4a3a28'); rect(154,19,4,1,'#4a3a28');
+  rect(163,22,1,2,'#3a2c1c');
+  rect(149,WALL_Y,21,2,'#b9baa8'); // stone step
 }
 
 /* ---------------- shed, barrel, basket ---------------- */
@@ -609,11 +621,10 @@ function drawTallyBoard(){
   ctx.fillStyle='#3d2c1c'; ctx.fillText('x'+tally.sunflower, x+8, y-1);
   // pumpkin
   disc(x+3,y+10,2,'#d97f2e'); rect(x+3,y+7,1,1,'#557f47');
-  ctx.fillText('x'+tally.pumpkin, x+8, y+7);
-  ctx.fillStyle='#3d2c1c';
+  ctx.fillStyle='#3d2c1c'; ctx.fillText('x'+tally.pumpkin, x+8, y+7);
   // catnip
   rect(x+2,y+16,3,3,'#8aa88f'); rect(x+3,y+15,1,1,'#d8e4d0');
-  ctx.fillText('x'+tally.catnip, x+8, y+15);
+  ctx.fillStyle='#3d2c1c'; ctx.fillText('x'+tally.catnip, x+8, y+15);
 }
 
 /* ---------------- fence & plot ---------------- */
@@ -627,6 +638,8 @@ function fenceObjects(objs){
   // north + south rails and pickets, sorted with everything else
   objs.push({y:F.y0-4,f:()=>{ rect(F.x0,F.y0-5,F.x1-F.x0+2,1,'#c9b78f'); rect(F.x0,F.y0-2,F.x1-F.x0+2,1,'#c9b78f'); }});
   objs.push({y:F.y1-4,f:()=>{ rect(F.x0,F.y1-5,F.x1-F.x0+2,1,'#c9b78f'); rect(F.x0,F.y1-2,F.x1-F.x0+2,1,'#c9b78f'); }});
+  // side rails
+  objs.push({y:F.y0-3,f:()=>{ rect(F.x0,F.y0-4,1,F.y1-F.y0,'#c9b78f'); rect(F.x1+1,F.y0-4,1,F.y1-F.y0,'#c9b78f'); }});
   for(let x=F.x0;x<=F.x1;x+=6){
     if(!(x>F.gx0-2&&x<F.gx1)) objs.push({y:F.y0,f:()=>picket(x,F.y0)});
     objs.push({y:F.y1,f:()=>picket(x,F.y1)});
@@ -985,7 +998,8 @@ function draw(){
   const flick=0.5+Math.sin(tGlobal*7)*0.04+Math.sin(tGlobal*13)*0.03;
   glow(64,20,20,0.30*flick);
   glow(174,20,20,0.30*flick);
-  glow(151,20,14,0.24*flick);
+  glow(245,20,16,0.26*flick);
+  glow(159,20,14,0.24*flick);
   ctx.globalCompositeOperation='source-over';
 
   ctx.drawImage(vig,0,0);

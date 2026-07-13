@@ -2,6 +2,8 @@
 
 *Tiny tales of a small black cat.*
 
+![The Cozy Arcade](arcade.png)
+
 A collection of cozy pixel games. Every game is a **single self-contained
 HTML file** — vanilla JavaScript and a `<canvas>`, no builds, no
 dependencies, no accounts. Open `index.html` for the arcade shelf, or dive

@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Star Paths — five memories of a small black cat</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;background:#0a0f1a;overflow:hidden;touch-action:none;
+    font-family:"Courier New",monospace;-webkit-user-select:none;user-select:none}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{image-rendering:pixelated;image-rendering:crisp-edges;background:#0a0f1a;border-radius:6px}
+  #snd{position:fixed;top:10px;right:10px;z-index:5;background:rgba(10,15,26,.6);color:#e9dfc8;
+    border:1px solid rgba(233,223,200,.25);border-radius:8px;font-size:18px;line-height:1;
+    padding:8px 10px;cursor:pointer}
+  #snd:active{transform:scale(.94)}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c"></canvas></div>
+<button id="snd" title="sound">🔇</button>
+<script>
+'use strict';
+/* ================================================================
+   STAR PATHS — the small black cat, up on her roof, reads
+   her own story in the stars. connect them, one to the next.
+   ================================================================ */
+
+const VW = 320, VH = 180;                 // low-res backbuffer, scaled up
+const cvs = document.getElementById('c');
+const ctx = cvs.getContext('2d');
+cvs.width = VW; cvs.height = VH;
+
+function fit(){
+  const w = Math.max(innerWidth,  document.documentElement.clientWidth)  || VW,
+        h = Math.max(innerHeight, document.documentElement.clientHeight) || VH;
+  const s = Math.min(w / VW, h / VH);
+  const si = s >= 1 ? Math.max(1, Math.floor(s)) : s; // integer scale when possible
+  const useS = (s - si) > 0.35 ? s : si;              // allow fractional if lots of waste
+  cvs.style.width  = (VW * useS) + 'px';
+  cvs.style.height = (VH * useS) + 'px';
+}
+addEventListener('resize', fit);
+addEventListener('orientationchange', fit);
+if (window.visualViewport) visualViewport.addEventListener('resize', fit);
+fit();
+// some mobile webviews report a 0-height window at load — keep re-fitting
+let lastW = 0, lastH = 0;
+function refit(){
+  if (innerWidth !== lastW || innerHeight !== lastH){
+    lastW = innerWidth; lastH = innerHeight; fit();
+  }
+}
+
+/* ---------------- deterministic randomness ---------------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const rnd = mulberry32(20260713);
+function hash2(x,y){let h=(x*374761393 + y*668265263)|0; h=(h^(h>>>13))|0;
+  h=Math.imul(h,1274126177); return ((h^(h>>>16))>>>0)/4294967296;}
+
+/* ---------------- drawing helpers ---------------- */
+function rect(x,y,w,h,c){ ctx.fillStyle=c; ctx.fillRect(Math.round(x),Math.round(y),w,h); }
+function disc(x,y,r,c){ // pixel circle
+  ctx.fillStyle=c;
+  for(let dy=-r;dy<=r;dy++){
+    const w=Math.floor(Math.sqrt(r*r-dy*dy));
+    ctx.fillRect(Math.round(x-w),Math.round(y+dy),w*2+1,1);
+  }
+}
+function glow(x,y,r,a,col){
+  const c=col||'255,205,120';
+  const g=ctx.createRadialGradient(x,y,0,x,y,r);
+  g.addColorStop(0,'rgba('+c+','+a+')');
+  g.addColorStop(1,'rgba('+c+',0)');
+  ctx.fillStyle=g; ctx.fillRect(x-r,y-r,r*2,r*2);
+}
+const smooth=s=>s<=0?0:s>=1?1:s*s*(3-2*s);
+const lerp=(a,b,k)=>a+(b-a)*k;
+
+/* ---------------- the five constellations ---------------- */
+const CONS=[
+ { name:'I · the barn cat', pos:[104,64], slot:[34,22],
+   pts:[[-30,24],[30,24],[30,-2],[18,-16],[0,-24],[-18,-16],[-30,-2]],
+   edges:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,0]],
+   story:"She was born in a barn at the edge of a field — one small shadow in the hay, quick and warm and nameless.",
+   ghost(a){
+     path(this.pts,true); ctx.fillStyle='rgba(255,196,130,'+0.10*a+')'; ctx.fill();
+     ctx.fillStyle='rgba(255,214,150,'+0.10*a+')'; ctx.fillRect(-7,4,14,20);
+     ctx.fillStyle='rgba(255,230,170,'+0.16*a+')'; ctx.fillRect(-3,-14,6,6);
+   }},
+ { name:'II · the city lights', pos:[202,58], slot:[284,24],
+   pts:[[-42,20],[-32,-8],[-20,4],[-10,-22],[2,-4],[12,-14],[20,8],[30,-18],[42,14]],
+   edges:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8]],
+   story:"Then came the city, glittering like a spilled jar of stars. She learned every rooftop and fish-market corner, and still slept alone.",
+   ghost(a){
+     path(this.pts,false); ctx.lineTo(42,24); ctx.lineTo(-42,24); ctx.closePath();
+     ctx.fillStyle='rgba(190,205,255,'+0.09*a+')'; ctx.fill();
+     ctx.fillStyle='rgba(255,220,150,'+0.30*a+')';
+     for(const [wx,wy] of [[-31,2],[-12,-12],[-9,-2],[3,4],[11,-6],[29,-8],[27,2],[19,14]])
+       ctx.fillRect(wx,wy,1,1);
+   }},
+ { name:'III · the storm', pos:[118,58], slot:[36,106],
+   pts:[[-8,-38],[14,-20],[-2,-12],[16,2],[0,10],[14,26],[-2,40]],
+   edges:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6]],
+   story:"One night the sky tore open. She ran from the thunder until her paws ached, and the rain did not care at all.",
+   ghost(a){
+     path(this.pts,false);
+     ctx.strokeStyle='rgba(190,210,255,'+0.13*a+')'; ctx.lineWidth=5; ctx.stroke();
+     ctx.strokeStyle='rgba(170,195,240,'+0.10*a+')'; ctx.lineWidth=1;
+     for(const [rx,ry] of [[-26,-20],[-20,6],[-24,26],[24,-26],[30,-2],[26,20],[-14,-34],[34,34]]){
+       ctx.beginPath(); ctx.moveTo(rx,ry); ctx.lineTo(rx-2,ry+7); ctx.stroke();
+     }
+   }},
+ { name:'IV · the kind hand', pos:[206,60], slot:[284,104],
+   pts:[[16,26],[22,-2],[12,-24],[-8,-24],[-14,-4],[-30,-14],[-14,24]],
+   edges:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,0]],
+   story:"In the morning, a hand — open, patient, smelling of bread. It did not grab. It only waited, and so she came.",
+   ghost(a){
+     path(this.pts,true); ctx.fillStyle='rgba(255,214,160,'+0.10*a+')'; ctx.fill();
+     glow(2,2,14,0.10*a);
+   }},
+ { name:'V · the little house', pos:[160,60], slot:[160,16],
+   pts:[[-24,24],[24,24],[24,-4],[0,-26],[-24,-4],[12,-15],[12,-33]],
+   edges:[[0,1],[1,2],[2,5],[5,3],[3,4],[4,0],[5,6]],
+   story:"The hand belonged to a door, and the door to a little house... and the window was warm, and it was hers.",
+   ghost(a){
+     path([this.pts[0],this.pts[1],this.pts[2],this.pts[3],this.pts[4]],true);
+     ctx.fillStyle='rgba(255,205,140,'+0.10*a+')'; ctx.fill();
+     ctx.fillStyle='rgba(255,217,138,'+0.34*a+')'; ctx.fillRect(-15,3,9,9);
+     ctx.fillStyle='rgba(255,214,150,'+0.13*a+')'; ctx.fillRect(4,8,9,16);
+   }},
+];
+function path(pts,close){
+  ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
+  if(close) ctx.closePath();
+}
+
+/* ---------------- chapter runtime ---------------- */
+let state='title', tGlobal=0, endT=0;
+let chIdx=0, phase='in', phT=0, sel=-1, drawn=[], edgeT=[], edgesDone=0, everConnected=false;
+const completed=[];
+function loadChapter(i){
+  chIdx=i; phase='in'; phT=0; sel=-1; edgesDone=0;
+  drawn=CONS[i].edges.map(()=>false);
+  edgeT=CONS[i].edges.map(()=>0);
+}
+function finishChapter(){ phase='story'; phT=0; sel=-1; playShimmer(); }
+loadChapter(0);
+
+/* ---------------- the night sky (pre-rendered) ---------------- */
+const sky=document.createElement('canvas'); sky.width=VW; sky.height=VH;
+{ const g=sky.getContext('2d');
+  const gr=g.createLinearGradient(0,0,0,VH);
+  gr.addColorStop(0,'#0a0f1d'); gr.addColorStop(0.55,'#0d1626'); gr.addColorStop(1,'#18242e');
+  g.fillStyle=gr; g.fillRect(0,0,VW,VH);
+  // milky way — a soft diagonal river of faint light
+  for(let k=0;k<7;k++){
+    const px=k*50-10, py2=98-px*0.21;
+    const rg=g.createRadialGradient(px,py2,0,px,py2,36);
+    rg.addColorStop(0,'rgba(165,185,215,0.05)'); rg.addColorStop(1,'rgba(165,185,215,0)');
+    g.fillStyle=rg; g.fillRect(px-36,py2-36,72,72);
+  }
+  for(let i=0;i<620;i++){
+    const t=rnd(), cx=t*360-20, cy=98-cx*0.21+(rnd()+rnd()+rnd()-1.5)*26;
+    g.fillStyle=rnd()<0.72?'rgba(205,216,234,'+(0.03+rnd()*0.06)+')'
+                          :'rgba(232,220,200,'+(0.03+rnd()*0.05)+')';
+    g.fillRect(Math.round(cx),Math.round(cy),1,1);
+  }
+}
+
+/* background stars, placed with hash2 on a grid */
+const bgStars=[];
+for(let gy=0;gy<45;gy++)for(let gx=0;gx<80;gx++){
+  const h=hash2(gx,gy);
+  if(h<0.045) bgStars.push({
+    x:gx*4+(((h*997)|0)%4), y:gy*4+(((h*463)|0)%4),
+    ph:h*40, sp:0.5+h*8, big:h<0.006,
+    warm:hash2(gx+7,gy+3)<0.3 });
+}
+
+/* clouds — two or three long slow wisps */
+const clouds=[{x:44,y:36,w:64,s:1.5},{x:186,y:82,w:84,s:1.0},{x:266,y:56,w:52,s:1.9}];
+
+/* shooting stars, sparkles, chimney smoke */
+const shoots=[], sparks=[], smoke=[]; let smokeT=0;
+function spawnShoot(){
+  const dir=Math.random()<0.5?1:-1, a=Math.PI*(0.13+Math.random()*0.12);
+  const sp=130+Math.random()*90;
+  shoots.push({x:30+Math.random()*260, y:5+Math.random()*62,
+    vx:Math.cos(a)*sp*dir, vy:Math.sin(a)*sp, life:0.8+Math.random()*0.5, age:0});
+}
+function twinkleAt(x,y,n){
+  for(let i=0;i<(n||7);i++){
+    const a=Math.random()*Math.PI*2, s2=8+Math.random()*20;
+    sparks.push({x,y,vx:Math.cos(a)*s2,vy:Math.sin(a)*s2,life:0.4+Math.random()*0.45,age:0});
+  }
+}
+
+/* ---------------- the rooftop ---------------- */
+function roofY(x){
+  if(x<58||x>=272) return 172;
+  if(x<120) return 172-Math.round((x-58)*34/62);
+  if(x<=210) return 138;
+  return 138+Math.round((x-210)*34/62);
+}
+const CAT_X=182, RIDGE=138;
+
+/* ---------------- the cat, lying on her roof ---------------- */
+const cat={ blink:0, swish:0, swishIn:5 };
+function drawRoofCat(){
+  const K='#16161f', cx=CAT_X;
+  const sitting = state==='end' && endT>1.0;
+  if(sitting){
+    const br=Math.round(Math.sin(tGlobal*1.6)*0.6);
+    rect(cx-3,130+br,7,8,K); rect(cx-2,137,5,1,K);
+    disc(cx,128+br,3,K);
+    rect(cx-2,123+br,1,2,K); rect(cx+2,123+br,1,2,K);       // ears
+    rect(cx+3,135,3,1,K); rect(cx+5,133,1,2,K);             // wrapped tail
+    rect(cx-3,129+br,7,1,'#242838');                        // moonlit rim
+    if(cat.blink<=0){ rect(cx-1,127+br,1,2,'#e8c04a'); rect(cx+1,127+br,1,2,'#e8c04a'); }
+    return;
+  }
+  const br=Math.sin(tGlobal*1.4)>0.4?1:0;                   // slow breath
+  rect(cx-7,RIDGE-4,13,4,K);
+  rect(cx-6,RIDGE-5-br,11,1+br,K);
+  disc(cx+7,RIDGE-6,3,K);                                   // head, tilted up
+  rect(cx+5,RIDGE-10,1,2,K); rect(cx+8,RIDGE-10,1,2,K);     // ears
+  rect(cx-6,RIDGE-5-br,11,1,'#242838');                     // moonlit rim
+  // tail, swishing now and then
+  const wag = cat.swish>0 ? Math.round(Math.sin(tGlobal*8)*1.5) : 0;
+  rect(cx-9,RIDGE-4,2,3,K);
+  rect(cx-11,RIDGE-6+wag,2,3,K);
+  rect(cx-13,RIDGE-7+wag*2,2,3,K);
+  if(cat.blink<=0){ rect(cx+6,RIDGE-8,1,1,'#e8c04a'); rect(cx+8,RIDGE-8,1,1,'#e8c04a'); }
+}
+function drawRoof(){
+  for(let x=0;x<VW;x++){ const y=roofY(x); rect(x,y,1,VH-y,'#07090d'); }
+  rect(130,117,11,21,'#07090d'); rect(128,114,15,3,'#07090d');   // chimney
+  rect(129,117,1,1,'#20242e');                                   // faint cap light
+  // warm window light, spilling up from below the eaves
+  ctx.globalCompositeOperation='lighter';
+  const fl=0.5+Math.sin(tGlobal*6.6)*0.05+Math.sin(tGlobal*11)*0.04;
+  glow(96,183,30,0.24*fl); glow(243,183,34,0.30*fl);
+  glow(135,116,10,0.06*fl);
+  ctx.globalCompositeOperation='source-over';
+  // chimney smoke
+  for(const s of smoke){
+    ctx.globalAlpha=s.a*0.30;
+    disc(s.x,s.y,Math.round(s.r),'#8e93a4');
+    ctx.globalAlpha=1;
+  }
+}
+
+/* ---------------- audio (starts muted; tap 🔇) ---------------- */
+let AC=null, master=null, dl=null, muted=true, nextNote=0;
+const SCALE=[440,493.88,554.37,659.26,739.99,880];
+const PENT=[523.25,587.33,659.26,783.99,880,1046.5,1174.66,1318.51];
+function initAudio(){
+  AC = new (window.AudioContext||window.webkitAudioContext)();
+  master = AC.createGain(); master.gain.value=0; master.connect(AC.destination);
+  // shared music-box echo
+  dl=AC.createDelay(); dl.delayTime.value=0.34;
+  const fb=AC.createGain(); fb.gain.value=0.30;
+  const wet=AC.createGain(); wet.gain.value=0.4;
+  dl.connect(fb).connect(dl); dl.connect(wet).connect(master);
+  // night wind — looped noise through a lowpass, very quiet
+  const len=AC.sampleRate*2, buf=AC.createBuffer(1,len,AC.sampleRate), d=buf.getChannelData(0);
+  let last=0;
+  for(let i=0;i<len;i++){ last=(last+(Math.random()*2-1)*0.04)*0.985; d[i]=last*6; }
+  const src=AC.createBufferSource(); src.buffer=buf; src.loop=true;
+  const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=320;
+  const wind=AC.createGain(); wind.gain.value=0.05;
+  src.connect(lp).connect(wind).connect(master); src.start();
+  nextNote=AC.currentTime+1.5;
+}
+function tone(f,amp,dur,when){
+  if(!AC) return;
+  const t=AC.currentTime+(when||0);
+  const g=AC.createGain();
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(amp,t+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  g.connect(dl); g.connect(master);
+  for(const det of [-3,3]){
+    const o=AC.createOscillator(); o.type='triangle';
+    o.frequency.value=f; o.detune.value=det;
+    o.connect(g); o.start(t); o.stop(t+dur+0.2);
+  }
+}
+function playNote(){ tone(SCALE[Math.floor(Math.random()*SCALE.length)]*(Math.random()<0.3?2:1),0.045,2.8); }
+function playShimmer(){ [523.25,659.26,783.99,1046.5,1318.51].forEach((f,i)=>tone(f,0.055,1.9,i*0.13)); }
+document.getElementById('snd').addEventListener('click',e=>{
+  e.stopPropagation();
+  if(!AC) initAudio();
+  if(AC.state==='suspended') AC.resume();
+  muted=!muted;
+  master.gain.linearRampToValueAtTime(muted?0:0.9, AC.currentTime+0.4);
+  e.currentTarget.textContent = muted?'🔇':'🔊';
+});
+
+/* ---------------- input ---------------- */
+addEventListener('keydown',e=>{
+  if([' ','Enter'].includes(e.key)) e.preventDefault();
+  if(state==='title') state='play';
+  else if(state==='end' && e.key.toLowerCase()==='r') location.reload();
+});
+function toCanvas(e){
+  const r=cvs.getBoundingClientRect();
+  return { x:(e.clientX-r.left)/r.width*VW, y:(e.clientY-r.top)/r.height*VH };
+}
+cvs.addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  if(state==='title'){ state='play'; return; }
+  if(state==='end'){ if(endT>6) location.reload(); return; }
+  if(phase!=='active') return;
+  const p=toCanvas(e), c=CONS[chIdx];
+  const R = e.pointerType==='touch' ? 13 : 9;
+  let best=-1, bd=R;
+  c.pts.forEach((pt,i)=>{
+    const d=Math.hypot(p.x-(c.pos[0]+pt[0]), p.y-(c.pos[1]+pt[1]));
+    if(d<bd){ bd=d; best=i; }
+  });
+  if(best<0) return;
+  const sx=c.pos[0]+c.pts[best][0], sy=c.pos[1]+c.pts[best][1];
+  if(sel<0 || sel===best){
+    sel=best; twinkleAt(sx,sy,4); tone(783.99,0.03,0.8);
+    return;
+  }
+  const ei=c.edges.findIndex(([a,b])=>(a===sel&&b===best)||(a===best&&b===sel));
+  if(ei>=0 && !drawn[ei]){
+    drawn[ei]=true; edgeT[ei]=0.0001; sel=best; edgesDone++; everConnected=true;
+    tone(PENT[Math.min(edgesDone-1,PENT.length-1)],0.05,1.6);
+    twinkleAt(sx,sy,5);
+    if(edgesDone===c.edges.length) finishChapter();
+  } else {
+    // no line here — just a gentle twinkle, and she starts from this star instead
+    sel=best; twinkleAt(sx,sy,8); tone(659.26,0.025,0.7);
+  }
+});
+
+/* ---------------- update ---------------- */
+function update(dt){
+  tGlobal+=dt;
+  cat.blink-=dt;
+  if(cat.blink<-3-Math.random()*4) cat.blink=0.12;
+  cat.swish-=dt;
+  if(cat.swish<0){ cat.swishIn-=dt; if(cat.swishIn<=0){ cat.swish=1.3; cat.swishIn=3.5+Math.random()*5; } }
+
+  for(const cl of clouds){ cl.x-=cl.s*dt; if(cl.x<-cl.w-30) cl.x=VW+30; }
+
+  const shootChance = state==='end' ? 0.5 : 0.08;
+  if(Math.random()<dt*shootChance && shoots.length<4) spawnShoot();
+  for(let i=shoots.length-1;i>=0;i--){
+    const s=shoots[i]; s.age+=dt; s.x+=s.vx*dt; s.y+=s.vy*dt;
+    if(s.age>s.life) shoots.splice(i,1);
+  }
+  for(let i=sparks.length-1;i>=0;i--){
+    const s=sparks[i]; s.age+=dt; s.x+=s.vx*dt; s.y+=s.vy*dt; s.vx*=0.94; s.vy*=0.94;
+    if(s.age>s.life) sparks.splice(i,1);
+  }
+  smokeT-=dt;
+  if(smokeT<=0){ smokeT=0.6; smoke.push({x:135,y:113,a:1,r:1+Math.random()}); }
+  for(let i=smoke.length-1;i>=0;i--){
+    const s=smoke[i];
+    s.y-=6*dt; s.x+=Math.sin(tGlobal*1.3+s.r*7)*3*dt+1.5*dt;
+    s.r+=1.1*dt; s.a-=0.34*dt;
+    if(s.a<=0) smoke.splice(i,1);
+  }
+
+  for(let k=0;k<edgeT.length;k++) if(drawn[k]&&edgeT[k]<0.4) edgeT[k]+=dt;
+
+  if(state==='play'){
+    phT+=dt;
+    if(phase==='in' && phT>1.6){ phase='active'; phT=0; }
+    else if(phase==='story' && phT>7.8){ phase='drift'; phT=0; }
+    else if(phase==='drift' && phT>2.3){
+      completed.push(chIdx);
+      if(chIdx<CONS.length-1) loadChapter(chIdx+1);
+      else { state='end'; endT=0; }
+    }
+  }
+  if(state==='end') endT+=dt;
+
+  if(AC && !muted && state!=='title' && AC.currentTime>nextNote){
+    playNote();
+    nextNote=AC.currentTime+3+Math.random()*4;
+  }
+}
+
+/* ---------------- constellation drawing ---------------- */
+function glowLine(x1,y1,x2,y2,a){
+  ctx.strokeStyle='rgba(255,231,176,'+(a*0.13)+')'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  ctx.strokeStyle='rgba(255,238,196,'+(a*0.55)+')'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+}
+function drawActiveCons(){
+  if(state!=='play') return;
+  const c=CONS[chIdx];
+  let px=c.pos[0], py=c.pos[1], sc=1, alpha=1, flare=0, ghostA=0;
+  if(phase==='in') alpha=smooth(phT/1.6);
+  else if(phase==='story'){
+    flare=Math.sin(Math.min(1,phT/1.4)*Math.PI);
+    ghostA=Math.min(1,Math.max(0,(phT-0.2)/0.5))*Math.min(1,Math.max(0,(2.6-phT)/0.6));
+  }
+  else if(phase==='drift'){
+    const k=smooth(phT/2.3);
+    px=lerp(c.pos[0],c.slot[0],k); py=lerp(c.pos[1],c.slot[1],k);
+    sc=lerp(1,0.3,k); alpha=lerp(1,0.45,k);
+  }
+  ctx.globalCompositeOperation='lighter';
+  // ghost illustration, remembered for a moment behind the stars
+  if(ghostA>0){
+    ctx.save(); ctx.translate(px,py); c.ghost(ghostA); ctx.restore();
+  }
+  // drawn edges
+  c.edges.forEach(([a,b],i)=>{
+    if(!drawn[i]) return;
+    const k=Math.min(1,edgeT[i]/0.35);
+    const ax=px+c.pts[a][0]*sc, ay=py+c.pts[a][1]*sc;
+    const bx=px+c.pts[b][0]*sc, by=py+c.pts[b][1]*sc;
+    glowLine(ax,ay,lerp(ax,bx,k),lerp(ay,by,k),alpha*(0.8+flare*0.6));
+    if(flare>0) glowLine(ax,ay,bx,by,flare*0.5);
+  });
+  // stars
+  c.pts.forEach((pt,i)=>{
+    const x=Math.round(px+pt[0]*sc), y=Math.round(py+pt[1]*sc);
+    const pu=0.72+0.28*Math.sin(tGlobal*2.1+i*1.7);
+    const a=alpha*(0.65+0.35*pu)+flare*0.4;
+    glow(x,y,5+flare*6,(0.10+0.10*pu)*alpha+flare*0.25,'255,236,180');
+    ctx.fillStyle='rgba(255,243,208,'+Math.min(1,a)+')';
+    ctx.fillRect(x-1,y-1,2,2);
+    ctx.fillStyle='rgba(255,236,180,'+Math.min(1,a*0.6)+')';
+    ctx.fillRect(x-2,y,1,1); ctx.fillRect(x+1,y,1,1);
+    ctx.fillRect(x,y-2,1,1); ctx.fillRect(x,y+1,1,1);
+    if(i===sel && phase==='active'){
+      const ring=0.35+0.25*Math.sin(tGlobal*6);
+      glow(x,y,8,ring,'255,246,214');
+    }
+  });
+  ctx.globalCompositeOperation='source-over';
+}
+function drawMini(idx,alpha,glowA){
+  const c=CONS[idx], sc=0.3, px=c.slot[0], py=c.slot[1];
+  ctx.globalCompositeOperation='lighter';
+  if(glowA>0) glow(px,py,16,glowA*0.22,'255,232,170');
+  const shim=0.85+0.15*Math.sin(tGlobal*0.9+idx*2.2);
+  for(const [a,b] of c.edges)
+    glowLine(px+c.pts[a][0]*sc,py+c.pts[a][1]*sc,
+             px+c.pts[b][0]*sc,py+c.pts[b][1]*sc, alpha*shim*0.55);
+  ctx.fillStyle='rgba(255,240,200,'+alpha*shim+')';
+  for(const pt of c.pts) ctx.fillRect(Math.round(px+pt[0]*sc),Math.round(py+pt[1]*sc),1,1);
+  ctx.globalCompositeOperation='source-over';
+}
+
+/* ---------------- text ---------------- */
+function wrapText(s,max){
+  const words=s.split(' '), lines=[]; let cur='';
+  for(const w of words){
+    if((cur+' '+w).trim().length>max){ lines.push(cur.trim()); cur=w; }
+    else cur+=' '+w;
+  }
+  if(cur.trim()) lines.push(cur.trim());
+  return lines;
+}
+function drawStoryBox(){
+  if(state!=='play'||phase!=='story') return;
+  const a=Math.min(1,Math.max(0,(phT-0.8)*1.5))*Math.min(1,(7.8-phT)*1.2);
+  if(a<=0) return;
+  const lines=wrapText(CONS[chIdx].story,46);
+  const bw=270, bh=lines.length*9+12;
+  const bx=(VW-bw)/2, by=VH-bh-8;
+  ctx.globalAlpha=a*0.85;
+  ctx.fillStyle='#101724'; ctx.fillRect(bx,by,bw,bh);
+  ctx.strokeStyle='rgba(240,228,196,0.35)'; ctx.strokeRect(bx+0.5,by+0.5,bw-1,bh-1);
+  ctx.globalAlpha=a;
+  ctx.fillStyle='#efe6cf'; ctx.font='7px "Courier New",monospace'; ctx.textBaseline='top';
+  lines.forEach((l,i)=>ctx.fillText(l, bx+9, by+7+i*9));
+  ctx.globalAlpha=1;
+}
+function drawLabel(){
+  if(state!=='play'||(phase!=='in'&&phase!=='active')) return;
+  const a=phase==='in'?smooth(phT/1.2):1;
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.font='7px "Courier New",monospace';
+  ctx.fillStyle='rgba(185,201,168,'+(a*0.85)+')';
+  ctx.fillText(CONS[chIdx].name, VW/2, 7);
+  if(chIdx===0 && !everConnected && phase==='active'){
+    ctx.fillStyle='rgba(143,163,130,'+(0.6+0.3*Math.sin(tGlobal*2.5))+')';
+    ctx.fillText('tap a bright star, then the next — trace the memory', VW/2, 18);
+  }
+  ctx.textAlign='left';
+}
+
+/* pre-rendered vignette */
+const vig=document.createElement('canvas'); vig.width=VW; vig.height=VH;
+{ const g=vig.getContext('2d');
+  const gr=g.createRadialGradient(VW/2,VH/2,VH*0.42,VW/2,VH/2,VH*0.95);
+  gr.addColorStop(0,'rgba(0,0,0,0)'); gr.addColorStop(1,'rgba(4,6,12,0.55)');
+  g.fillStyle=gr; g.fillRect(0,0,VW,VH); }
+
+/* ---------------- scene draw ---------------- */
+function draw(){
+  ctx.drawImage(sky,0,0);
+
+  // background stars, twinkling
+  for(const s of bgStars){
+    const tw=0.5+0.5*Math.sin(tGlobal*s.sp+s.ph);
+    const a=0.18+0.55*tw;
+    ctx.fillStyle=s.warm?'rgba(232,220,192,'+a+')':'rgba(205,214,228,'+a+')';
+    ctx.fillRect(s.x,s.y,1,1);
+    if(s.big){
+      ctx.fillStyle='rgba(220,228,240,'+(a*0.5)+')';
+      ctx.fillRect(s.x-1,s.y,1,1); ctx.fillRect(s.x+1,s.y,1,1);
+      ctx.fillRect(s.x,s.y-1,1,1); ctx.fillRect(s.x,s.y+1,1,1);
+    }
+  }
+
+  // cloud wisps
+  ctx.globalAlpha=0.055; ctx.fillStyle='#a9c0cf';
+  for(const cl of clouds){
+    ctx.fillRect(Math.round(cl.x),cl.y,cl.w,2);
+    ctx.fillRect(Math.round(cl.x+10),cl.y-2,Math.round(cl.w*0.6),2);
+    ctx.fillRect(Math.round(cl.x-7),cl.y+2,Math.round(cl.w*0.7),2);
+  }
+  ctx.globalAlpha=1;
+
+  // shooting stars
+  ctx.globalCompositeOperation='lighter';
+  for(const s of shoots){
+    const a=Math.sin(Math.min(1,s.age/s.life)*Math.PI)*0.8;
+    const m=Math.hypot(s.vx,s.vy), tx=s.vx/m, ty=s.vy/m;
+    ctx.strokeStyle='rgba(210,225,255,'+(a*0.20)+')'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(s.x,s.y); ctx.lineTo(s.x-tx*20,s.y-ty*20); ctx.stroke();
+    ctx.strokeStyle='rgba(235,242,255,'+(a*0.7)+')'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(s.x,s.y); ctx.lineTo(s.x-tx*15,s.y-ty*15); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,244,'+a+')';
+    ctx.fillRect(Math.round(s.x),Math.round(s.y),1,1);
+  }
+  // click sparkles
+  for(const s of sparks){
+    const a=1-s.age/s.life;
+    ctx.fillStyle='rgba(255,240,200,'+(a*0.85)+')';
+    ctx.fillRect(Math.round(s.x),Math.round(s.y),1,1);
+  }
+  ctx.globalCompositeOperation='source-over';
+
+  // completed constellations, small and steady in their corners
+  const fin = state==='end';
+  for(const i of completed){
+    const pulse=fin?0.5+0.5*Math.sin(tGlobal*1.1+i*1.9):0;
+    drawMini(i, fin?0.55+0.35*pulse:0.4, fin?0.5+0.5*pulse:0);
+  }
+
+  drawActiveCons();
+
+  drawRoof();
+  drawRoofCat();
+
+  drawStoryBox();
+  drawLabel();
+
+  ctx.drawImage(vig,0,0);
+
+  if(state==='title') drawTitle();
+  if(state==='end') drawEnd();
+}
+function drawTitle(){
+  ctx.fillStyle='rgba(6,9,16,0.55)'; ctx.fillRect(0,0,VW,VH);
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.fillStyle='#05070d';
+  ctx.font='bold 19px "Courier New",monospace';
+  ctx.fillText('S T A R  P A T H S', VW/2+1, 47);
+  ctx.fillStyle='#f0e6cc';
+  ctx.fillText('S T A R  P A T H S', VW/2, 46);
+  ctx.font='8px "Courier New",monospace';
+  ctx.fillStyle='#b9c9a8';
+  ctx.fillText('five memories of a small black cat', VW/2, 74);
+  if(Math.sin(tGlobal*3.5)>-0.3){
+    ctx.fillStyle='#efe6cf';
+    ctx.fillText('press any key  ·  or tap', VW/2, 118);
+  }
+  ctx.fillStyle='#8fa382';
+  ctx.font='7px "Courier New",monospace';
+  ctx.fillText('connect the stars, one to the next', VW/2, 152);
+  ctx.fillText('she is on the roof. she remembers.', VW/2, 163);
+  ctx.textAlign='left';
+}
+function drawEnd(){
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.font='8px "Courier New",monospace';
+  const lines=[
+    [1.4,'Five memories, stitched in light.'],
+    [3.8,'The sky keeps them safe now, so she can rest.'],
+    [6.2,'And the night, gently, watches her back.'],
+  ];
+  lines.forEach(([at,txt],i)=>{
+    const a=Math.max(0,Math.min(1,(endT-at)/1.2));
+    if(a>0){ ctx.fillStyle='rgba(242,230,205,'+a+')'; ctx.fillText(txt,VW/2,44+i*13); }
+  });
+  if(endT>9 && Math.sin(tGlobal*3)>-0.2){
+    ctx.fillStyle='#a89a7e'; ctx.font='7px "Courier New",monospace';
+    ctx.fillText('press R  ·  or tap — to watch the sky again', VW/2, 150);
+  }
+  ctx.textAlign='left';
+}
+
+/* ---------------- main loop ---------------- */
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  refit();
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* tiny hook for automated play-testing */
+window._sp = {
+  state:()=>({state,chIdx,phase,phT,endT,edgesDone}),
+  stars:()=>CONS[chIdx].pts.map(p=>({x:CONS[chIdx].pos[0]+p[0], y:CONS[chIdx].pos[1]+p[1]})),
+  start(){ if(state==='title') state='play'; },
+  completeCurrent(){
+    if(state!=='play'||(phase!=='in'&&phase!=='active')) return;
+    drawn=drawn.map(()=>true); edgeT=edgeT.map(()=>0.4);
+    edgesDone=CONS[chIdx].edges.length; finishChapter();
+  },
+  skip(){
+    if(phase==='in') phT=1.7;
+    else if(phase==='story') phT=7.7;
+    else if(phase==='drift') phT=2.25;
+  },
+  warpEnd(t){ if(state==='end') endT=t; },
+};
+</script>
+</body>
+</html>

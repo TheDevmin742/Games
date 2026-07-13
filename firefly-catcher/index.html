@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Firefly Catcher — a tiny cozy cat tale</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;background:#0a0f18;overflow:hidden;touch-action:none;
+    font-family:"Courier New",monospace;-webkit-user-select:none;user-select:none}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{image-rendering:pixelated;image-rendering:crisp-edges;background:#0a0f18;border-radius:6px}
+  #snd{position:fixed;top:10px;right:10px;z-index:5;background:rgba(10,15,24,.6);color:#e9dfc8;
+    border:1px solid rgba(233,223,200,.25);border-radius:8px;font-size:18px;line-height:1;
+    padding:8px 10px;cursor:pointer}
+  #snd:active{transform:scale(.94)}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c"></canvas></div>
+<button id="snd" title="sound">🔇</button>
+<script>
+'use strict';
+/* ================================================================
+   FIREFLY CATCHER — a tiny cozy tale of a small black cat,
+   a glass jar, and one moonlit meadow.
+   move: arrows / WASD, pounce: SPACE — or drag & tap on touch
+   ================================================================ */
+
+const VW = 320, VH = 180;                 // low-res backbuffer, scaled up
+const cvs = document.getElementById('c');
+const ctx = cvs.getContext('2d');
+cvs.width = VW; cvs.height = VH;
+
+function fit(){
+  const w = Math.max(innerWidth,  document.documentElement.clientWidth)  || VW,
+        h = Math.max(innerHeight, document.documentElement.clientHeight) || VH;
+  const s = Math.min(w / VW, h / VH);
+  const si = s >= 1 ? Math.max(1, Math.floor(s)) : s; // integer scale when possible
+  const useS = (s - si) > 0.35 ? s : si;              // allow fractional if lots of waste
+  cvs.style.width  = (VW * useS) + 'px';
+  cvs.style.height = (VH * useS) + 'px';
+}
+addEventListener('resize', fit);
+addEventListener('orientationchange', fit);
+if (window.visualViewport) visualViewport.addEventListener('resize', fit);
+fit();
+// some mobile webviews report a 0-height window at load — keep re-fitting
+let lastW = 0, lastH = 0;
+function refit(){
+  if (innerWidth !== lastW || innerHeight !== lastH){
+    lastW = innerWidth; lastH = innerHeight; fit();
+  }
+}
+
+/* ---------------- deterministic randomness ---------------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const rnd = mulberry32(20260714);
+function hash2(x,y){let h=(x*374761393 + y*668265263)|0; h=(h^(h>>>13))|0;
+  h=Math.imul(h,1274126177); return ((h^(h>>>16))>>>0)/4294967296;}
+
+/* ---------------- world ---------------- */
+const T=8, MW=120, MH=60, WW=MW*T, WH=MH*T;
+const G0=0,G1=1,TGR=2,FLW=3,WTR=4,TRE=5;
+const map = new Uint8Array(MW*MH);
+const mget=(x,y)=> (x<0||y<0||x>=MW||y>=MH) ? TRE : map[y*MW+x];
+const mset=(x,y,v)=>{ if(x>=0&&y>=0&&x<MW&&y<MH) map[y*MW+x]=v; };
+
+const HORIZON=16*T;              // world y where the sky meets the meadow
+const MEADOW_TOP=17, MEADOW_BOT=26;
+const POND={cx:72,cy:22,rx:6,ry:3.4};
+
+const treeline=[], pines=[], tufts=[];
+
+function generate(){
+  // sky rows + far forest are all "tree" (unwalkable)
+  for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){
+    if(y<MEADOW_TOP||y>MEADOW_BOT||x<2||x>=MW-2){ map[y*MW+x]=TRE; continue; }
+    const r=hash2(x,y);
+    map[y*MW+x] = r<0.14 ? G1 : r<0.24 ? TGR : r<0.275 ? FLW : G0;
+  }
+  // the pond — a still eye of moonlight, with a ragged reedy edge
+  for(let y=MEADOW_TOP;y<=MEADOW_BOT;y++)for(let x=2;x<MW-2;x++){
+    const dx=(x-POND.cx)/POND.rx, dy=(y-POND.cy)/POND.ry;
+    const d=dx*dx+dy*dy;
+    if(d<1 && (d<0.68 || hash2(x*3,y*7)<0.55)) map[y*MW+x]=WTR;
+  }
+  // scattered meadow pines (blocking), away from pond and start
+  let placed=0, guard=0;
+  while(placed<22 && guard++<600){
+    const x=4+Math.floor(rnd()*(MW-8)), y=MEADOW_TOP+1+Math.floor(rnd()*(MEADOW_BOT-MEADOW_TOP-1));
+    const pdx=(x-POND.cx)/(POND.rx+2), pdy=(y-POND.cy)/(POND.ry+1.5);
+    if(pdx*pdx+pdy*pdy<1) continue;
+    if(Math.abs(x-30)<5 && Math.abs(y-22)<4) continue;   // spawn clearing
+    if(map[y*MW+x]!==G0&&map[y*MW+x]!==G1) continue;
+    map[y*MW+x]=TRE;
+    pines.push({x:x*T+4, y:y*T+8, h:14+Math.floor(rnd()*10), v:rnd()});
+    placed++;
+  }
+  // north treeline along the horizon + a low south fringe
+  for(let x=-8;x<WW+8;x+=5+Math.floor(rnd()*7))
+    treeline.push({x:x, y:HORIZON+5+Math.floor(rnd()*3), h:18+Math.floor(rnd()*17), v:rnd()});
+  for(let x=-8;x<WW+8;x+=6+Math.floor(rnd()*7))
+    treeline.push({x:x, y:(MEADOW_BOT+2)*T+6+Math.floor(rnd()*4), h:12+Math.floor(rnd()*9), v:rnd()});
+  // remember tall-grass tufts for swaying draw
+  for(let y=0;y<MH;y++)for(let x=0;x<MW;x++)
+    if(map[y*MW+x]===TGR) tufts.push({x:x*T,y:y*T,h:hash2(x*3,y*5)});
+}
+generate();
+
+/* ---------------- collision ---------------- */
+function walkableAt(px,pyx){
+  if(px<T*2.5||px>WW-T*2.5) return false;
+  if(pyx<MEADOW_TOP*T+3||pyx>(MEADOW_BOT+1)*T-3) return false;
+  const t=mget(Math.floor(px/T),Math.floor(pyx/T));
+  return t!==TRE && t!==WTR;
+}
+const canStand=(x,y)=> walkableAt(x-2,y+3)&&walkableAt(x+2,y+3)&&walkableAt(x,y+1);
+
+/* ---------------- the cat & her jar ---------------- */
+const cat = { x:30*T, y:22*T, dx:1, dy:0, moving:false, idle:0, t:0, blink:0 };
+let jarX=cat.x-6, jarY=cat.y;
+let caught=0;
+
+/* ---------------- the moon is the clock ---------------- */
+const MOON_DUR=100;
+let moonT=0;                       // seconds of night spent
+const moonK=()=>Math.max(0,Math.min(1,moonT/MOON_DUR));
+
+/* ---------------- story ---------------- */
+const beats = [
+  {x:cat.x, y:cat.y, r:50, text:"The moon hangs low and the meadow is blinking awake. She has until moonset — and a glass jar just big enough for wonder."},
+];
+let activeBeat=null, beatT=0;
+
+/* ---------------- fireflies ---------------- */
+const fireflies=[];
+const NFLY=32;
+for(let i=0;i<NFLY;i++) fireflies.push({
+  x:T*4+rnd()*(WW-T*8),
+  y:(MEADOW_TOP*T+6)+rnd()*((MEADOW_BOT-MEADOW_TOP)*T-10),
+  ph:rnd()*7, sp:0.55+rnd()*0.5, a:rnd()*7, se:rnd()*9,
+  caught:false, resp:0 });
+
+/* ---------------- pounce ---------------- */
+const POUNCE_RANGE=13;
+let pounce=null, pounceCd=0;      // {t,dur,x0,y0,tx,ty,fly}
+const sparkles=[];
+
+function nearestFly(){
+  let best=null,bd=1e9;
+  for(const f of fireflies){
+    if(f.caught) continue;
+    const d=Math.hypot(f.x-cat.x,f.y-cat.y);
+    if(d<bd){bd=d;best=f;}
+  }
+  return {fly:best,d:bd};
+}
+function doPounce(){
+  if(state!=='play'||pounce||pounceCd>0) return;
+  const {fly,d}=nearestFly();
+  let tx,ty,target=null;
+  if(fly && d<POUNCE_RANGE){ target=fly; tx=fly.x; ty=fly.y; }
+  else {
+    const m=Math.hypot(cat.dx,cat.dy)||1;
+    tx=cat.x+cat.dx/m*11; ty=cat.y+cat.dy/m*11;
+  }
+  pounce={t:0,dur:0.26,x0:cat.x,y0:cat.y,tx,ty,fly:target};
+  pounceCd=0.32;
+}
+function catchFly(f){
+  f.caught=true; f.resp=8+rnd()*8;
+  caught++;
+  for(let i=0;i<9;i++){
+    const a=rnd()*6.28, s=14+rnd()*26;
+    sparkles.push({x:f.x,y:f.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-8,life:0.55+rnd()*0.3});
+  }
+  if(AC&&!muted) chime();
+}
+
+/* ---------------- input ---------------- */
+const keys={};
+addEventListener('keydown',e=>{
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+  keys[e.key.toLowerCase()]=true;
+  if(state==='title'){ startPlay(); return; }
+  if(state==='end' && e.key.toLowerCase()==='r') location.reload();
+  if(state==='play' && e.key===' ' && !e.repeat) doPounce();
+});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+
+let joy=null; // {ox,oy,x,y}
+let tapT=0;
+function toCanvas(e){
+  const r=cvs.getBoundingClientRect();
+  return { x:(e.clientX-r.left)/r.width*VW, y:(e.clientY-r.top)/r.height*VH };
+}
+cvs.addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  if(state==='title'){ startPlay(); return; }
+  if(state==='end'){ if(endT>6) location.reload(); return; }
+  const p=toCanvas(e); joy={ox:p.x,oy:p.y,x:p.x,y:p.y}; tapT=performance.now();
+});
+addEventListener('pointermove',e=>{ if(joy){const p=toCanvas(e); joy.x=p.x; joy.y=p.y;} });
+addEventListener('pointerup',()=>{
+  if(joy && performance.now()-tapT<230 &&
+     Math.hypot(joy.x-joy.ox,joy.y-joy.oy)<6 && state==='play') doPounce();
+  joy=null;
+});
+addEventListener('pointercancel',()=>joy=null);
+
+function startPlay(){
+  state='play';
+  activeBeat=beats[0]; beatT=0;
+}
+
+/* ---------------- ambience ---------------- */
+const stars=[];
+for(let i=0;i<110;i++) stars.push({
+  x:rnd()*(VW+(WW-VW)*0.25), y:rnd()*(HORIZON-14),
+  ph:rnd()*7, sp:0.6+rnd()*2.4, b:rnd()<0.14 });
+
+/* ---------------- audio (starts muted; tap 🔇) ---------------- */
+let AC=null, master=null, muted=true, noiseBuf=null, cricketNext=0, owlNext=0;
+const PENT=[523.25,587.33,659.25,783.99,880.00];
+function initAudio(){
+  AC = new (window.AudioContext||window.webkitAudioContext)();
+  master = AC.createGain(); master.gain.value=0; master.connect(AC.destination);
+  const len=AC.sampleRate*0.25, buf=AC.createBuffer(1,len,AC.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+  noiseBuf=buf;
+  cricketNext=AC.currentTime+0.6;
+  owlNext=AC.currentTime+7+Math.random()*10;
+}
+function cricketTick(t){
+  const src=AC.createBufferSource(); src.buffer=noiseBuf;
+  const bp=AC.createBiquadFilter(); bp.type='bandpass';
+  bp.frequency.value=4200+Math.random()*500; bp.Q.value=14;
+  const g=AC.createGain();
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(0.16,t+0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+0.05);
+  src.connect(bp).connect(g).connect(master);
+  src.start(t); src.stop(t+0.07);
+}
+function cricketCluster(){
+  const t0=AC.currentTime+0.03, n=4+Math.floor(Math.random()*5), iv=0.065+Math.random()*0.02;
+  for(let i=0;i<n;i++) cricketTick(t0+i*iv);
+  cricketNext=t0+n*iv+0.35+Math.random()*2.4;
+}
+function hoot(t,f){
+  const o=AC.createOscillator(); o.type='sine';
+  o.frequency.setValueAtTime(f,t);
+  o.frequency.linearRampToValueAtTime(f*0.9,t+0.34);
+  const g=AC.createGain();
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(0.12,t+0.06);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+0.42);
+  o.connect(g).connect(master); o.start(t); o.stop(t+0.5);
+}
+function owl(){
+  const t=AC.currentTime+0.05, f=300+Math.random()*40;
+  hoot(t,f); hoot(t+0.5,f*0.84);
+  owlNext=t+14+Math.random()*22;
+}
+function chime(){
+  const f=PENT[Math.min(PENT.length-1,caught%PENT.length)]*(caught>14?2:1);
+  const t=AC.currentTime;
+  const g=AC.createGain();
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(0.12,t+0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+1.1);
+  const dl=AC.createDelay(); dl.delayTime.value=0.27;
+  const fb=AC.createGain(); fb.gain.value=0.3;
+  const wet=AC.createGain(); wet.gain.value=0.3;
+  dl.connect(fb).connect(dl); g.connect(dl).connect(wet).connect(master);
+  g.connect(master);
+  for(const det of [-3,3]){
+    const o=AC.createOscillator(); o.type='triangle';
+    o.frequency.value=f; o.detune.value=det;
+    o.connect(g); o.start(t); o.stop(t+1.2);
+  }
+}
+document.getElementById('snd').addEventListener('click',e=>{
+  e.stopPropagation();
+  if(!AC) initAudio();
+  if(AC.state==='suspended') AC.resume();
+  muted=!muted;
+  master.gain.linearRampToValueAtTime(muted?0:0.9, AC.currentTime+0.4);
+  e.currentTarget.textContent = muted?'🔇':'🔊';
+});
+
+/* ---------------- state ---------------- */
+let state='title', tGlobal=0, endT=0;
+const cam={x:0,y:0};
+
+/* ---------------- update ---------------- */
+function update(dt){
+  tGlobal+=dt;
+  if(state==='end'){ endT+=dt; updateParticles(dt); audioTick(); return; }
+
+  // input direction
+  let ix=0,iy=0;
+  if(state==='play' && !pounce){
+    if(keys['arrowleft']||keys['a'])ix-=1;
+    if(keys['arrowright']||keys['d'])ix+=1;
+    if(keys['arrowup']||keys['w'])iy-=1;
+    if(keys['arrowdown']||keys['s'])iy+=1;
+    if(joy){
+      const dx=joy.x-joy.ox, dy=joy.y-joy.oy, m=Math.hypot(dx,dy);
+      if(m>4){ ix=dx/m; iy=dy/m; }
+    }
+  }
+  const m=Math.hypot(ix,iy);
+  cat.moving=m>0.01;
+  if(cat.moving){
+    ix/=m; iy/=m;
+    cat.dx=ix; cat.dy=iy;
+    const sp=56*dt;
+    const nx=cat.x+ix*sp, ny=cat.y+iy*sp;
+    if(canStand(nx,cat.y)) cat.x=nx;
+    if(canStand(cat.x,ny)) cat.y=ny;
+    cat.idle=0;
+  } else cat.idle+=dt;
+  cat.t+=dt;
+  cat.blink-=dt;
+  if(cat.blink<-3-Math.random()*3) cat.blink=0.12;
+  pounceCd=Math.max(0,pounceCd-dt);
+
+  // the pounce itself
+  if(pounce){
+    pounce.t+=dt;
+    const k=Math.min(1,pounce.t/pounce.dur);
+    const nx=pounce.x0+(pounce.tx-pounce.x0)*k;
+    const ny=pounce.y0+(pounce.ty-pounce.y0)*k;
+    if(canStand(nx,cat.y)) cat.x=nx;
+    if(canStand(cat.x,ny)) cat.y=ny;
+    const f=pounce.fly;
+    if(f && !f.caught && Math.hypot(f.x-cat.x,f.y-cat.y)<6) catchFly(f);
+    if(k>=1){
+      if(f && !f.caught && Math.hypot(f.x-cat.x,f.y-cat.y)<9) catchFly(f);
+      pounce=null;
+    }
+  }
+
+  // jar bobs along beside her
+  const jtx=cat.x-(cat.dx>=0?6:-6), jty=cat.y+1;
+  jarX+=(jtx-jarX)*Math.min(1,dt*8);
+  jarY+=(jty-jarY)*Math.min(1,dt*8);
+
+  // moon sets
+  if(state==='play'){
+    moonT+=dt;
+    if(moonT>=MOON_DUR){ state='end'; endT=0; activeBeat=null; joy=null; }
+  }
+
+  // story beat
+  if(activeBeat){
+    beatT+=dt;
+    if(beatT>7.5) activeBeat=null;
+  }
+
+  updateParticles(dt);
+  audioTick();
+}
+
+function audioTick(){
+  if(!AC||muted) return;
+  if(AC.currentTime>cricketNext) cricketCluster();
+  if(AC.currentTime>owlNext) owl();
+}
+
+function updateParticles(dt){
+  for(const f of fireflies){
+    if(f.caught){
+      f.resp-=dt;
+      if(f.resp<=0){
+        const nx=T*4+Math.random()*(WW-T*8);
+        const ny=(MEADOW_TOP*T+6)+Math.random()*((MEADOW_BOT-MEADOW_TOP)*T-10);
+        if(Math.hypot(nx-cat.x,ny-cat.y)>70){ f.x=nx; f.y=ny; f.caught=false; }
+        else f.resp=1;
+      }
+      continue;
+    }
+    f.ph+=dt;
+    f.a+=Math.sin(tGlobal*0.6+f.se)*1.1*dt;
+    let vx=Math.cos(f.a)*9*f.sp, vy=Math.sin(f.a*1.3)*7*f.sp;
+    if(state==='play'){
+      const d=Math.hypot(f.x-cat.x,f.y-cat.y);
+      if(d<20&&d>0.1){ vx+=(f.x-cat.x)/d*11; vy+=(f.y-cat.y)/d*11; }
+    }
+    f.x+=vx*dt; f.y+=vy*dt;
+    // drift back into the meadow
+    if(f.x<T*3){f.x=T*3; f.a=Math.PI-f.a;}
+    if(f.x>WW-T*3){f.x=WW-T*3; f.a=Math.PI-f.a;}
+    if(f.y<MEADOW_TOP*T+3){f.y=MEADOW_TOP*T+3; f.a=-f.a;}
+    if(f.y>(MEADOW_BOT+1)*T-2){f.y=(MEADOW_BOT+1)*T-2; f.a=-f.a;}
+  }
+  for(let i=sparkles.length-1;i>=0;i--){
+    const s=sparkles[i];
+    s.life-=dt; s.x+=s.vx*dt; s.y+=s.vy*dt;
+    s.vx*=0.94; s.vy=s.vy*0.94+14*dt;
+    if(s.life<=0) sparkles.splice(i,1);
+  }
+}
+
+/* ---------------- drawing helpers ---------------- */
+function rect(x,y,w,h,c){ ctx.fillStyle=c; ctx.fillRect(Math.round(x),Math.round(y),w,h); }
+function disc(x,y,r,c){ // pixel circle
+  ctx.fillStyle=c;
+  for(let dy=-r;dy<=r;dy++){
+    const w=Math.floor(Math.sqrt(r*r-dy*dy));
+    ctx.fillRect(Math.round(x-w),Math.round(y+dy),w*2+1,1);
+  }
+}
+function lerpC(a,b,k){
+  return 'rgb('+Math.round(a[0]+(b[0]-a[0])*k)+','+Math.round(a[1]+(b[1]-a[1])*k)+','
+    +Math.round(a[2]+(b[2]-a[2])*k)+')';
+}
+
+/* pre-rendered vignette */
+const vig=document.createElement('canvas'); vig.width=VW; vig.height=VH;
+{ const g=vig.getContext('2d');
+  const gr=g.createRadialGradient(VW/2,VH/2,VH*0.42,VW/2,VH/2,VH*0.95);
+  gr.addColorStop(0,'rgba(0,0,0,0)'); gr.addColorStop(1,'rgba(4,7,12,0.55)');
+  g.fillStyle=gr; g.fillRect(0,0,VW,VH); }
+
+/* ---------------- tiles ---------------- */
+function drawTile(tx,ty,sx,sy){
+  const t=mget(tx,ty), h=hash2(tx,ty);
+  if(ty<MEADOW_TOP-1) return;                       // sky handles itself
+  if(ty<MEADOW_TOP || ty>MEADOW_BOT){               // dark forest floor fringe
+    rect(sx,sy,T,T, h<0.5?'#0d191c':'#0b161a');
+    return;
+  }
+  rect(sx,sy,T,T, h<0.5?'#1a2d2c':'#182a29');
+  switch(t){
+    case G1:
+      rect(sx,sy,T,T,'#162625');
+      rect(sx+2,sy+3,1,2,'#20362f'); rect(sx+5,sy+1,1,2,'#20362f');
+      break;
+    case TGR:
+      // blades drawn as swaying objects later; keep a darker base
+      rect(sx+1,sy+4,1,2,'#213a33'); rect(sx+5,sy+3,1,2,'#213a33');
+      break;
+    case FLW: {
+      const c=['#5e7488','#54697e','#697d90'][Math.floor(h*3)];
+      rect(sx+3,sy+3,2,1,c); rect(sx+2,sy+4,1,1,c); rect(sx+3,sy+5,1,2,'#26443a');
+      break; }
+    case WTR: {
+      rect(sx,sy,T,T,'#102a3c');
+      if(h<0.35) rect(sx,sy,T,T,'#0e2536');
+      // moonlight glints drifting across the still water
+      const s2=(tx*7+ty*13+Math.floor(tGlobal*2.0))%13;
+      if(s2===0) rect(sx+(h*13|0)%6, sy+(h*7|0)%7, 3,1,'#7fa8c2');
+      if(s2===6) rect(sx+(h*23|0)%6, sy+(h*31|0)%7, 2,1,'#436e8a');
+      if(s2===3&&h<0.3) rect(sx+(h*17|0)%7, sy+(h*11|0)%7, 1,1,'#cfe0ec');
+      // banks
+      if(mget(tx,ty-1)!==WTR) rect(sx,sy,T,1,'#28455a');
+      if(mget(tx,ty+1)!==WTR) rect(sx,sy+T-1,T,1,'#0a1a28');
+      if(mget(tx-1,ty)!==WTR) rect(sx,sy,1,T,'#20394b');
+      if(mget(tx+1,ty)!==WTR) rect(sx+T-1,sy,1,T,'#0a1a28');
+      break; }
+    case TRE:
+      rect(sx,sy,T,T,'#101f20');
+      break;
+  }
+}
+
+/* ---------------- objects ---------------- */
+function drawPine(sx,sy,h,v,c1,c2){
+  // layered silhouette pine, apex at sy-h
+  for(let i=2;i<h;i++){
+    const half=Math.max(1,Math.round(i*0.34*(0.85+v*0.3)));
+    rect(sx-half, sy-h+i, half*2+1, 1, (i%5<2)?c1:c2);
+  }
+  rect(sx-1,sy-1,2,2,'#08100f');
+}
+function drawTuft(o,sx,sy){
+  const sw=Math.sin(tGlobal*1.6+o.h*9)*1.2;
+  const c1='#2e4f42', c2='#3a6150';
+  rect(sx+2,sy+2,1,4,c1); rect(sx+2+Math.round(sw),sy+1,1,2,c2);
+  rect(sx+4,sy+1,1,5,c1); rect(sx+4+Math.round(sw),sy-1,1,3,c2);
+  rect(sx+6,sy+3,1,3,c1); rect(sx+6+Math.round(sw*0.7),sy+2,1,2,c2);
+}
+function drawJar(sx,sy){
+  rect(sx-2,sy-4,5,1,'#7d94a4');            // rim
+  rect(sx-1,sy-6,3,2,'#8a6a48');            // little cork
+  rect(sx-2,sy-3,5,4,'#22384a');            // glass
+  rect(sx-2,sy-3,1,3,'#5d7886');            // shine
+  rect(sx+2,sy-2,1,2,'#33505e');
+  const n=Math.min(3,caught);
+  for(let i=0;i<n;i++){
+    if(Math.sin(tGlobal*3+i*2.6)>-0.2)
+      rect(sx-1+i, sy-3+((i*7+Math.floor(tGlobal*2))%3), 1,1,'#ffe796');
+  }
+}
+function drawCat(sx,sy){
+  const walking=cat.moving||!!pounce;
+  const hop=pounce?Math.sin(Math.min(1,pounce.t/pounce.dur)*Math.PI)*4:0;
+  const bob = walking ? Math.round(Math.sin(cat.t*13)*1) : Math.round(Math.sin(cat.t*2)*0.6);
+  const sitting = cat.idle>4 && state==='play';
+  // shadow
+  ctx.fillStyle='rgba(6,12,14,0.45)';
+  ctx.fillRect(Math.round(sx-4),Math.round(sy+2),9,2);
+  const K='#16161f';
+  const cy=sy-3+bob-Math.round(hop);
+  if(sitting){
+    disc(sx,cy-1,3,K); rect(sx-3,cy-1,7,5,K); rect(sx-2,cy+3,5,1,K);
+    rect(sx-2,cy-5,1,2,K); rect(sx+2,cy-5,1,2,K);           // ears
+    rect(sx+3,cy+2,3,1,K); rect(sx+5,cy+1,1,2,K);           // wrapped tail
+    if(cat.blink<=0){ rect(sx-1,cy-2,1,2,'#e8c04a'); rect(sx+1,cy-2,1,2,'#e8c04a'); }
+  } else {
+    // round blob body, same little cat from the bridge
+    rect(sx-2,cy-3,5,1,K);
+    rect(sx-3,cy-2,7,1,K);
+    rect(sx-4,cy-1,9,4,K);
+    rect(sx-3,cy+3,7,1,K);
+    rect(sx-2,cy+4,5,1,K);
+    // ears lean with direction
+    const eo=Math.round(cat.dx);
+    rect(sx-3+eo,cy-4,1,1,K); rect(sx-2+eo,cy-5,1,2,K);
+    rect(sx+1+eo,cy-5,1,2,K); rect(sx+2+eo,cy-4,1,1,K);
+    // tail on trailing side, wagging
+    const ts=cat.dx>=0?-1:1;
+    const wag=Math.round(Math.sin(cat.t*6)*1);
+    rect(sx+ts*5,cy-1+wag,1,2,K); rect(sx+ts*6,cy-3+wag,1,3,K);
+    // eyes look where she goes
+    if(cat.blink<=0){
+      const ex=Math.round(cat.dx*1.5), ey=Math.round(cat.dy*1);
+      rect(sx-2+ex,cy-1+ey,1,2,'#e8c04a');
+      rect(sx+1+ex,cy-1+ey,1,2,'#e8c04a');
+    }
+  }
+}
+
+/* ---------------- text ---------------- */
+function wrapText(s,max){
+  const words=s.split(' '), lines=[]; let cur='';
+  for(const w of words){
+    if((cur+' '+w).trim().length>max){ lines.push(cur.trim()); cur=w; }
+    else cur+=' '+w;
+  }
+  if(cur.trim()) lines.push(cur.trim());
+  return lines;
+}
+function drawBeat(){
+  if(!activeBeat) return;
+  const a=Math.min(1,beatT*2)*Math.min(1,(7.5-beatT)*1.2);
+  if(a<=0) return;
+  const lines=wrapText(activeBeat.text,46);
+  const bw=270, bh=lines.length*9+12;
+  const bx=(VW-bw)/2, by=VH-bh-8;
+  ctx.globalAlpha=a*0.85;
+  ctx.fillStyle='#0e141d'; ctx.fillRect(bx,by,bw,bh);
+  ctx.strokeStyle='rgba(240,228,196,0.35)'; ctx.strokeRect(bx+0.5,by+0.5,bw-1,bh-1);
+  ctx.globalAlpha=a;
+  ctx.fillStyle='#efe6cf'; ctx.font='7px "Courier New",monospace'; ctx.textBaseline='top';
+  lines.forEach((l,i)=>ctx.fillText(l, bx+9, by+7+i*9));
+  ctx.globalAlpha=1;
+}
+
+/* ---------------- scene draw ---------------- */
+function glow(x,y,r,a){
+  const g=ctx.createRadialGradient(x,y,0,x,y,r);
+  g.addColorStop(0,'rgba(255,232,140,'+a+')');
+  g.addColorStop(1,'rgba(255,232,140,0)');
+  ctx.fillStyle=g; ctx.fillRect(x-r,y-r,r*2,r*2);
+}
+function glowC(x,y,r,a,rgb){
+  const g=ctx.createRadialGradient(x,y,0,x,y,r);
+  g.addColorStop(0,'rgba('+rgb+','+a+')');
+  g.addColorStop(1,'rgba('+rgb+',0)');
+  ctx.fillStyle=g; ctx.fillRect(x-r,y-r,r*2,r*2);
+}
+
+function moonPos(){
+  const k=moonK();
+  const horizonS=HORIZON-cam.y;
+  return { x:100-cam.x*0.08, y:24+k*(horizonS-20), r:10 };
+}
+
+function draw(){
+  // camera
+  cam.x=Math.max(0,Math.min(WW-VW,cat.x-VW/2));
+  cam.y=Math.max(0,Math.min(60,cat.y-VH/2-6));
+
+  const k=moonK();
+  const horizonS=HORIZON-cam.y;
+
+  // night sky, deepening as the moon sets
+  const g=ctx.createLinearGradient(0,0,0,horizonS+18);
+  g.addColorStop(0, lerpC([13,20,38],[5,8,19],k));
+  g.addColorStop(1, lerpC([32,56,74],[11,18,32],k));
+  ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH);
+
+  // stars
+  for(const s of stars){
+    const sx=s.x-cam.x*0.25, sy=s.y-cam.y*0.5;
+    if(sx<-1||sx>VW+1||sy>horizonS-3) continue;
+    const tw=Math.max(0,Math.sin(tGlobal*s.sp+s.ph*5));
+    if(tw<0.15) continue;
+    ctx.fillStyle='rgba('+(s.b?'240,244,248':'190,205,222')+','+(0.25+tw*0.6)+')';
+    ctx.fillRect(Math.round(sx),Math.round(sy),1,1);
+    if(s.b&&tw>0.8){
+      ctx.fillRect(Math.round(sx)-1,Math.round(sy),1,1);
+      ctx.fillRect(Math.round(sx)+1,Math.round(sy),1,1);
+    }
+  }
+
+  // the big low moon
+  const mp=moonPos();
+  glowC(mp.x,mp.y,mp.r*3.2,0.16*(1-k*0.4),'214,224,238');
+  // as it sinks, the horizon warms and hazes behind the pines
+  if(k>0.55) glowC(mp.x,horizonS+2,60,(k-0.55)*0.5,'226,206,160');
+  disc(mp.x,mp.y,mp.r,'#e9e4cf');
+  disc(mp.x-3,mp.y-2,2,'#d5cfba');
+  disc(mp.x+4,mp.y+3,1,'#d5cfba');
+  disc(mp.x+2,mp.y-5,1,'#dcd6c1');
+  rect(mp.x-5,mp.y+4,2,1,'#d5cfba');
+
+  // meadow tiles
+  const tx0=Math.floor(cam.x/T), ty0=Math.floor(cam.y/T);
+  for(let ty=Math.max(MEADOW_TOP-1,ty0);ty<=ty0+VH/T;ty++)
+    for(let tx=tx0;tx<=tx0+VW/T;tx++)
+      drawTile(tx,ty, tx*T-cam.x, ty*T-cam.y);
+
+  // depth-sorted objects
+  const objs=[];
+  const inView=(x,y,pad)=> x>cam.x-pad&&x<cam.x+VW+pad&&y>cam.y-pad&&y<cam.y+VH+pad;
+  for(const t of treeline) if(inView(t.x,t.y,40))
+    objs.push({y:t.y,f:()=>drawPine(t.x-cam.x,t.y-cam.y,t.h,t.v,'#0c171c','#0e1b20')});
+  for(const p of pines) if(inView(p.x,p.y,30))
+    objs.push({y:p.y,f:()=>drawPine(p.x-cam.x,p.y-cam.y,p.h,p.v,'#10241f','#122a26')});
+  for(const u of tufts) if(inView(u.x,u.y,12))
+    objs.push({y:u.y+7,f:()=>drawTuft(u,u.x-cam.x,u.y-cam.y)});
+  objs.push({y:jarY+2.5,f:()=>drawJar(Math.round(jarX-cam.x),Math.round(jarY-cam.y))});
+  objs.push({y:cat.y+3,f:()=>drawCat(Math.round(cat.x-cam.x),Math.round(cat.y-cam.y))});
+  objs.sort((a,b)=>a.y-b.y);
+  // north treeline first (it hugs the horizon), then everything by depth
+  for(const o of objs) o.f();
+
+  // sparkles from a catch
+  for(const s of sparkles){
+    ctx.globalAlpha=Math.min(1,s.life*2.4);
+    ctx.fillStyle=Math.random()<0.5?'#fff2b0':'#ffe08a';
+    ctx.fillRect(Math.round(s.x-cam.x),Math.round(s.y-cam.y),1,1);
+    ctx.globalAlpha=1;
+  }
+
+  // lights
+  ctx.globalCompositeOperation='lighter';
+  // moonlight pooled on the pond
+  const pcx=POND.cx*T-cam.x, pcy=POND.cy*T+4-cam.y;
+  if(pcx>-80&&pcx<VW+80) glowC(pcx,pcy,42,0.10*(1-k*0.55),'150,190,220');
+  // the jar's gathered light
+  const jsx=jarX-cam.x, jsy=jarY-3-cam.y;
+  if(caught>0) glow(jsx,jsy,6+Math.min(26,caught)*0.7,0.12+Math.min(26,caught)*0.012);
+  // fireflies
+  for(const f of fireflies){
+    if(f.caught) continue;
+    if(!inView(f.x,f.y,8)) continue;
+    const tw=(Math.sin(f.ph*2.4)+1)/2;
+    if(tw<0.22) continue;
+    const fx=f.x-cam.x, fy=f.y-cam.y;
+    glow(fx,fy,4+tw*2,tw*0.75);
+    ctx.fillStyle='rgba(255,240,160,'+(0.4+tw*0.6)+')';
+    ctx.fillRect(Math.round(fx),Math.round(fy),1,1);
+  }
+  ctx.globalCompositeOperation='source-over';
+
+  // deep-night tint as the moon sinks
+  if(k>0){ ctx.fillStyle='rgba(4,7,18,'+(k*0.30)+')'; ctx.fillRect(0,0,VW,VH); }
+
+  ctx.drawImage(vig,0,0);
+
+  // touch joystick
+  if(joy && state==='play'){
+    ctx.strokeStyle='rgba(240,235,215,0.35)';
+    ctx.beginPath(); ctx.arc(joy.ox,joy.oy,11,0,7); ctx.stroke();
+    const dx=joy.x-joy.ox, dy=joy.y-joy.oy, mm=Math.max(1,Math.hypot(dx,dy));
+    const kk=Math.min(1,mm/11);
+    ctx.fillStyle='rgba(240,235,215,0.55)';
+    ctx.beginPath(); ctx.arc(joy.ox+dx/mm*11*kk,joy.oy+dy/mm*11*kk,3.5,0,7); ctx.fill();
+  }
+
+  // HUD — the jar so far
+  if(state==='play'){
+    ctx.fillStyle='rgba(8,12,18,0.55)'; ctx.fillRect(5,5,46,13);
+    ctx.strokeStyle='rgba(233,223,200,0.2)'; ctx.strokeRect(5.5,5.5,45,12);
+    rect(10,9,4,6,'#22384a'); rect(10,8,4,1,'#7d94a4');
+    if(caught>0&&Math.sin(tGlobal*3)>-0.3) rect(11,11,1,1,'#ffe796');
+    ctx.fillStyle='#efe6cf'; ctx.font='8px "Courier New",monospace'; ctx.textBaseline='top';
+    ctx.fillText('× '+caught, 19, 8);
+  }
+
+  drawBeat();
+
+  if(state==='title') drawTitle();
+  if(state==='end') drawEnd();
+}
+
+function drawTitle(){
+  ctx.fillStyle='rgba(6,10,17,0.60)'; ctx.fillRect(0,0,VW,VH);
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.fillStyle='#05080e';
+  ctx.font='bold 15px "Courier New",monospace';
+  ctx.fillText('F I R E F L Y  C A T C H E R', VW/2+1, 48);
+  ctx.fillStyle='#f0e6cc';
+  ctx.fillText('F I R E F L Y  C A T C H E R', VW/2, 47);
+  ctx.font='8px "Courier New",monospace';
+  ctx.fillStyle='#a8bcc8';
+  ctx.fillText('a small cat, a glass jar, one moonlit meadow', VW/2, 73);
+  if(Math.sin(tGlobal*3.5)>-0.3){
+    ctx.fillStyle='#efe6cf';
+    ctx.fillText('press any key  ·  or tap', VW/2, 116);
+  }
+  ctx.fillStyle='#7f94a0';
+  ctx.font='7px "Courier New",monospace';
+  ctx.fillText('arrows / WASD move · SPACE pounces — drag & tap on touch', VW/2, 150);
+  ctx.fillText('catch what you can before the moon slips away.', VW/2, 161);
+  ctx.textAlign='left';
+}
+
+function gradeLine(){
+  if(caught>=25) return 'the meadow will tell stories about tonight.';
+  if(caught>=15) return 'a lantern of her own.';
+  if(caught>=5)  return 'a pawful of stars.';
+  if(caught>=1)  return 'a small, bright beginning.';
+  return 'the little lights danced just out of paw\'s reach.';
+}
+function drawEnd(){
+  const e=Math.min(1,endT/2.2);
+  ctx.fillStyle='rgba(5,7,14,'+(e*0.93)+')'; ctx.fillRect(0,0,VW,VH);
+  if(e<1) return;
+  const cx=VW/2, cy=VH/2+34;
+  // ground shadow + the cat, sitting by her opened jar
+  ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.fillRect(cx-14,cy+3,28,2);
+  const K='#16161f';
+  disc(cx-4,cy-4,3,K); rect(cx-7,cy-4,7,7,K); rect(cx-6,cy+2,5,1,K);
+  rect(cx-6,cy-8,1,2,K); rect(cx-2,cy-8,1,2,K);
+  rect(cx,cy-1,3,1,K); rect(cx+2,cy-3,1,2,K);
+  if(Math.sin(tGlobal*0.7)>-0.95){ rect(cx-5,cy-5,1,2,'#e8c04a'); rect(cx-3,cy-5,1,2,'#e8c04a'); }
+  // opened jar (cork beside it)
+  rect(cx+7,cy-3,5,5,'#22384a'); rect(cx+7,cy-4,5,1,'#7d94a4');
+  rect(cx+7,cy-3,1,4,'#5d7886');
+  rect(cx+14,cy+1,3,2,'#8a6a48');
+  // the release — every little light spirals up and away
+  const t2=endT-2.2;
+  ctx.globalCompositeOperation='lighter';
+  glowC(cx+9,cy-4,10,0.12+0.05*Math.sin(tGlobal*3),'255,232,140');
+  const nShow=Math.min(caught,44);
+  for(let i=0;i<nShow;i++){
+    const born=0.4+i*0.11;
+    const age=t2-born;
+    if(age<0) continue;
+    const a=age*2.6+i*2.39996;
+    const r=3+age*7;
+    const fx=cx+9+Math.cos(a)*r*1.15;
+    const fy=cy-6-age*8+Math.sin(a)*r*0.4;
+    const al=Math.max(0,1-age/9)*(0.55+0.45*Math.sin(age*7+i));
+    if(al<=0||fy<-8) continue;
+    glow(fx,fy,3.5,al*0.8);
+    ctx.fillStyle='rgba(255,240,160,'+al+')';
+    ctx.fillRect(Math.round(fx),Math.round(fy),1,1);
+  }
+  ctx.globalCompositeOperation='source-over';
+  // the words
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.font='8px "Courier New",monospace';
+  const lines=[
+    [0.8,'The moon touches the pines, and the night lets out its breath.',      '#f2e6cd'],
+    [3.0,'She caught '+caught+' little light'+(caught===1?'':'s')+' — and let every one go.','#f2e6cd'],
+    [5.2, gradeLine(),                                                          '#ffe796'],
+  ];
+  lines.forEach(([at,txt,col],i)=>{
+    const a=Math.max(0,Math.min(1,(endT-2.2-at)/1.2));
+    if(a>0){
+      ctx.fillStyle='rgba(5,7,14,'+a*0.4+')';
+      const lw=Math.min(300,txt.length*4.9);
+      ctx.fillRect(VW/2-lw/2-3,36+i*15-1,lw+6,11);
+      ctx.globalAlpha=a; ctx.fillStyle=col;
+      ctx.fillText(txt,VW/2,36+i*15);
+      ctx.globalAlpha=1;
+    }
+  });
+  if(endT>9.5 && Math.sin(tGlobal*3)>-0.2){
+    ctx.fillStyle='#a89a7e'; ctx.font='7px "Courier New",monospace';
+    ctx.fillText('press R  ·  or tap — to chase again', VW/2, 158);
+  }
+  ctx.textAlign='left';
+}
+
+/* ---------------- main loop ---------------- */
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  refit();
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* tiny hooks for automated testing */
+window.__fc = {
+  get state(){return state}, set state(s){state=s},
+  get caught(){return caught},
+  get cat(){return cat},
+  get flies(){return fireflies},
+  start(){ if(state==='title') startPlay(); },
+  catAt(x,y){ cat.x=x; cat.y=y; },
+  setMoon(t){ moonT=t; },
+  pounce(){ doPounce(); },
+};
+</script>
+</body>
+</html>

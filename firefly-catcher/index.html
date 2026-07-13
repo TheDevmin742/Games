@@ -99,7 +99,7 @@ function generate(){
   }
   // north treeline along the horizon + a low south fringe
   for(let x=-8;x<WW+8;x+=5+Math.floor(rnd()*7))
-    treeline.push({x:x, y:HORIZON+5+Math.floor(rnd()*3), h:18+Math.floor(rnd()*17), v:rnd()});
+    treeline.push({x:x, y:HORIZON+5+Math.floor(rnd()*3), h:14+Math.floor(rnd()*12), v:rnd()});
   for(let x=-8;x<WW+8;x+=6+Math.floor(rnd()*7))
     treeline.push({x:x, y:(MEADOW_BOT+2)*T+6+Math.floor(rnd()*4), h:12+Math.floor(rnd()*9), v:rnd()});
   // remember tall-grass tufts for swaying draw
@@ -583,7 +583,7 @@ function moonPos(){
 function draw(){
   // camera
   cam.x=Math.max(0,Math.min(WW-VW,cat.x-VW/2));
-  cam.y=Math.max(0,Math.min(60,cat.y-VH/2-6));
+  cam.y=Math.max(8,Math.min(48,cat.y-115));   // biased upward — keep the sky in view
 
   const k=moonK();
   const horizonS=HORIZON-cam.y;

@@ -6,8 +6,11 @@
 
 A collection of cozy pixel games. Every game is a **single self-contained
 HTML file** — vanilla JavaScript and a `<canvas>`, no builds, no
-dependencies, no accounts. Open `index.html` for the arcade shelf, or dive
-straight into any game's folder.
+dependencies, no accounts. The root `index.html` is a cozy launcher with
+**all six games embedded inside it** — one file that plays the whole arcade,
+online or off. Or dive straight into any game's folder.
+
+After editing a game, rebuild the launcher with `node build-arcade.mjs`.
 
 | Game | Folder | What it is |
 |---|---|---|
